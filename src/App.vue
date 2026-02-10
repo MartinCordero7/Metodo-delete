@@ -13,6 +13,7 @@ const error = ref(null)
 const currentPage = ref(1)
 const itemsPerPage = 15
 const dataSource = ref('productos') // 'productos' o 'carrito'
+const cartItems = ref([])
 
 onMounted(() => {
   // Asegurar que siempre empieza en productos
@@ -118,9 +119,71 @@ const totalPages = computed(() => {
   return Math.ceil(filteredDocuments.value.length / itemsPerPage)
 })
 
+const totalProductos = computed(() => {
+  return filteredDocuments.value.reduce((acc, doc) => {
+    if (doc.tipo !== 'producto') return acc
+    const precio = Number(doc.precio)
+    return acc + (Number.isFinite(precio) ? precio : 0)
+  }, 0)
+})
+
+const cartTotal = computed(() => {
+  return cartItems.value.reduce((acc, item) => {
+    const precio = Number(item.precio)
+    const cantidad = Number(item.cantidad)
+    if (!Number.isFinite(precio) || !Number.isFinite(cantidad)) return acc
+    return acc + (precio * cantidad)
+  }, 0)
+})
+
+const cartCount = computed(() => {
+  return cartItems.value.reduce((acc, item) => {
+    const cantidad = Number(item.cantidad)
+    return acc + (Number.isFinite(cantidad) ? cantidad : 0)
+  }, 0)
+})
+
 // Reiniciar a página 1 cuando se busca
 const handleSearch = () => {
   currentPage.value = 1
+}
+
+const addToCart = (product) => {
+  if (!product) return
+  const key = product._id || product.nombre
+  if (!key) return
+
+  const existing = cartItems.value.find((item) => item.key === key)
+  if (existing) {
+    existing.cantidad += 1
+    return
+  }
+
+  const precio = Number(product.precio)
+  cartItems.value.push({
+    key,
+    _id: product._id,
+    nombre: product.nombre || 'Sin nombre',
+    precio: Number.isFinite(precio) ? precio : 0,
+    cantidad: 1
+  })
+}
+
+const updateCartQty = (key, value) => {
+  const cantidad = Number(value)
+  if (!Number.isFinite(cantidad) || cantidad <= 0) {
+    removeFromCart(key)
+    return
+  }
+
+  const item = cartItems.value.find((entry) => entry.key === key)
+  if (item) {
+    item.cantidad = Math.floor(cantidad)
+  }
+}
+
+const removeFromCart = (key) => {
+  cartItems.value = cartItems.value.filter((item) => item.key !== key)
 }
 
 // Función para descargar PDF
@@ -170,6 +233,7 @@ const downloadPDF = () => {
       5: { cellWidth: 50 }
     }
   })
+
   
   // Guardar el PDF
   doc.save(`documentos_plos_${new Date().getTime()}.pdf`)
@@ -191,6 +255,7 @@ const loadCustomJSON = (event) => {
     reader.readAsText(file)
   }
 }
+
 
 // Eliminar producto con confirmación si está vinculado a carrito
 const handleDelete = async (doc) => {
@@ -269,8 +334,56 @@ const handleDelete = async (doc) => {
       <DocumentTable 
         :documents="paginatedDocuments" 
         :data-source="dataSource"
+        @add="addToCart"
         @delete="handleDelete"
       />
+
+      <div v-if="dataSource === 'productos'" class="cart-panel">
+        <div class="cart-header">
+          <h2>Carrito de compras</h2>
+          <div class="cart-summary">
+            <span>{{ cartCount }} items</span>
+            <strong>Total: ${{ cartTotal.toFixed(2) }}</strong>
+          </div>
+        </div>
+
+        <div v-if="cartItems.length === 0" class="cart-empty">
+          Agrega productos para calcular el total.
+        </div>
+
+        <table v-else class="cart-table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Precio</th>
+              <th>Cantidad</th>
+              <th>Subtotal</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in cartItems" :key="item.key">
+              <td>{{ item.nombre }}</td>
+              <td>${{ Number(item.precio).toFixed(2) }}</td>
+              <td>
+                <input
+                  type="number"
+                  min="1"
+                  :value="item.cantidad"
+                  class="cart-qty"
+                  @input="updateCartQty(item.key, $event.target.value)"
+                />
+              </td>
+              <td>${{ (Number(item.precio) * Number(item.cantidad)).toFixed(2) }}</td>
+              <td>
+                <button class="btn btn-secondary" @click="removeFromCart(item.key)">
+                  Quitar
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       
       <!-- Paginación -->
       <div class="pagination">
@@ -297,6 +410,9 @@ const handleDelete = async (doc) => {
       
       <div class="stats">
         Mostrando {{ paginatedDocuments.length }} de {{ filteredDocuments.length }} documentos (Total: {{ documents.length }})
+        <template v-if="dataSource === 'productos'">
+          · Total de productos: ${{ totalProductos.toFixed(2) }}
+        </template>
       </div>
     </template>
   </div>

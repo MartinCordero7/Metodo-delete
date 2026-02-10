@@ -10,7 +10,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['delete'])
+const emit = defineEmits(['delete', 'add'])
 
 const truncateDescription = (desc) => {
   if (!desc) return 'Sin descripción'
@@ -63,6 +63,7 @@ const formatId = (id) => {
             </span>
           </td>
           <td class="col-acciones">
+            <button class="btn-add" @click="emit('add', doc)">+ Agregar</button>
             <button class="btn-delete" @click="emit('delete', doc)">🗑 Eliminar</button>
           </td>
         </tr>
@@ -260,6 +261,22 @@ tbody tr:last-child td {
   cursor: pointer;
   font-weight: 600;
   transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-add {
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-right: 0.4rem;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-add:hover {
+  background: #16a34a;
 }
 
 .btn-delete:hover {
